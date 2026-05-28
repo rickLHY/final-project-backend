@@ -63,10 +63,14 @@ def _check_seat_available(
             seq_cache[station_id] = s.sequence_no if s else 0
         return seq_cache[station_id]
 
+    # Normalize ranges so low < high regardless of travel direction
+    req_lo, req_hi = min(start_seq, end_seq), max(start_seq, end_seq)
+
     for ticket in booked:
         t_start = get_seq(ticket.start_station_id)
         t_end = get_seq(ticket.end_station_id)
-        if start_seq < t_end and t_start < end_seq:
+        t_lo, t_hi = min(t_start, t_end), max(t_start, t_end)
+        if req_lo < t_hi and t_lo < req_hi:
             return False
     return True
 
@@ -109,8 +113,8 @@ def create_order(
 
         start_seq = get_seq(ticket_data.start_station_id)
         end_seq = get_seq(ticket_data.end_station_id)
-        if start_seq >= end_seq:
-            raise HTTPException(status_code=400, detail="start_station_id must come before end_station_id")
+        if start_seq == end_seq:
+            raise HTTPException(status_code=400, detail="Start and end stations must be different")
 
         if not _check_seat_available(db, data.schedule_id, ticket_data.seat_id, start_seq, end_seq):
             raise HTTPException(

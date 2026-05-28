@@ -134,15 +134,16 @@ def get_available_seats(
             seq_cache[station_id] = s.sequence_no if s else 0
         return seq_cache[station_id]
 
-    req_start_seq = start_station.sequence_no
-    req_end_seq = end_station.sequence_no
+    # Normalize to [lo, hi] so comparison works for both directions
+    req_lo = min(start_station.sequence_no, end_station.sequence_no)
+    req_hi = max(start_station.sequence_no, end_station.sequence_no)
 
     booked_seat_ids: set[int] = set()
     for ticket in booked_tickets:
         t_start_seq = get_seq(ticket.start_station_id)
         t_end_seq = get_seq(ticket.end_station_id)
-        # Two segments [A,B) and [C,D) overlap if A < D and C < B
-        if req_start_seq < t_end_seq and t_start_seq < req_end_seq:
+        t_lo, t_hi = min(t_start_seq, t_end_seq), max(t_start_seq, t_end_seq)
+        if req_lo < t_hi and t_lo < req_hi:
             booked_seat_ids.add(ticket.seat_id)
 
     # Query available seats (only reserved carriages)
