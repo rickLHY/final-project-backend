@@ -1,16 +1,14 @@
-import os
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from .. import models, schemas
+from ..config import settings
 from ..database import get_db
 from ..auth import verify_password, get_password_hash, create_access_token
 
 router = APIRouter()
-
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
 
 # ── Email / password ───────────────────────────────────────────────────────────
@@ -54,7 +52,7 @@ class GoogleTokenRequest(BaseModel):
 
 @router.post("/google", response_model=schemas.Token)
 def google_login(body: GoogleTokenRequest, db: Session = Depends(get_db)):
-    if not GOOGLE_CLIENT_ID:
+    if not settings.google_client_id:
         raise HTTPException(status_code=501, detail="Google OAuth not configured on this server")
 
     try:
@@ -64,7 +62,7 @@ def google_login(body: GoogleTokenRequest, db: Session = Depends(get_db)):
         idinfo = id_token.verify_oauth2_token(
             body.credential,
             google_requests.Request(),
-            GOOGLE_CLIENT_ID,
+            settings.google_client_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=f"Invalid Google token: {exc}")

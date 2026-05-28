@@ -5,10 +5,6 @@ Run from the project root:
 Inserts: 12 stations, sample trains, all seats (1,044 seats), ticket prices, and one sample schedule.
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 from app.database import SessionLocal, engine
 from app import models
 from app.auth import get_password_hash
