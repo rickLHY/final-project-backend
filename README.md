@@ -63,6 +63,8 @@ API docs: http://localhost:8000/docs
 | GET    | /schedules/{id}                               | Schedule details with stop times     |
 | GET    | /schedules/{id}/available-seats               | Available seats for a segment        |
 | GET    | /schedules/{id}/early-bird                    | Early-bird pools                     |
+| GET    | /schedules/non-reserved-availability?departure_date=&station_id= | Non-reserved seat congestion level per train |
+| GET    | /schedules/peak-sales?start_date=&end_date=   | Occupancy & sales stats for a date range |
 | POST   | /orders/                                      | Book tickets (1–6 per order)         |
 | GET    | /orders/{id}                                  | Order details                        |
 | GET    | /orders/booking/{code}                        | Look up by booking code              |

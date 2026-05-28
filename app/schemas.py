@@ -257,6 +257,38 @@ class OrderWithTickets(OrderResponse):
     tickets: List[OrderTicketResponse] = []
 
 
+# ── Non-reserved availability ─────────────────────────────────────────────────
+
+class NonReservedAvailability(BaseModel):
+    schedule_id: int
+    train_no: str
+    train_type: str
+    departure_time: Optional[time]
+    non_reserved_total: int
+    non_reserved_sold: int
+    non_reserved_available: int
+    congestion_level: str  # "low" / "medium" / "high" / "full"
+
+    model_config = {"from_attributes": True}
+
+
+# ── Peak sales stats ──────────────────────────────────────────────────────────
+
+class PeakSalesSummary(BaseModel):
+    schedule_id: int
+    train_no: str
+    train_type: str
+    departure_date: date
+    first_departure_time: Optional[time]
+    last_arrival_time: Optional[time]
+    total_seats: int
+    sold_seats: int
+    available_seats: int
+    occupancy_rate: float
+
+    model_config = {"from_attributes": True}
+
+
 # ── Waitlists ─────────────────────────────────────────────────────────────────
 
 class WaitlistCreate(BaseModel):

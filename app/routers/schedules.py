@@ -100,6 +100,131 @@ def search_schedules(
     return results
 
 
+@router.get("/non-reserved-availability", response_model=list[schemas.NonReservedAvailability])
+def non_reserved_availability(
+    departure_date: date,
+    station_id: int,
+    db: Session = Depends(get_db),
+):
+    """Non-reserved seat occupancy for all trains stopping at a station on a given date."""
+    station = db.query(models.Station).filter(models.Station.station_id == station_id).first()
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    schedules = (
+        db.query(models.Schedule)
+        .filter(models.Schedule.departure_date == departure_date)
+        .join(models.Train)
+        .all()
+    )
+
+    # Total non-reserved seats (same across all schedules — depends only on non_reserved_start_carriage)
+    results = []
+    for schedule in schedules:
+        stop_map = {st.station_id: st for st in schedule.stop_times}
+        if station_id not in stop_map:
+            continue
+        departure_time = stop_map[station_id].departure_time
+
+        non_reserved_total = db.query(models.Seat).filter(
+            models.Seat.carriage_no >= schedule.non_reserved_start_carriage
+        ).count()
+
+        non_reserved_sold = (
+            db.query(models.OrderTicket)
+            .join(models.Order)
+            .join(models.Seat, models.OrderTicket.seat_id == models.Seat.seat_id)
+            .filter(
+                models.OrderTicket.schedule_id == schedule.schedule_id,
+                models.OrderTicket.ticket_status == "valid",
+                models.Order.payment_status.in_(["unpaid", "paid"]),
+                models.Seat.carriage_no >= schedule.non_reserved_start_carriage,
+            )
+            .count()
+        )
+
+        non_reserved_available = max(0, non_reserved_total - non_reserved_sold)
+        rate = non_reserved_sold / non_reserved_total if non_reserved_total else 0
+        if rate >= 1.0:
+            level = "full"
+        elif rate >= 0.8:
+            level = "high"
+        elif rate >= 0.5:
+            level = "medium"
+        else:
+            level = "low"
+
+        results.append(schemas.NonReservedAvailability(
+            schedule_id=schedule.schedule_id,
+            train_no=schedule.train_no,
+            train_type=schedule.train.train_type,
+            departure_time=departure_time,
+            non_reserved_total=non_reserved_total,
+            non_reserved_sold=non_reserved_sold,
+            non_reserved_available=non_reserved_available,
+            congestion_level=level,
+        ))
+
+    results.sort(key=lambda r: r.departure_time or "")
+    return results
+
+
+@router.get("/peak-sales", response_model=list[schemas.PeakSalesSummary])
+def peak_sales_stats(
+    start_date: date,
+    end_date: date,
+    db: Session = Depends(get_db),
+):
+    """Ticket sales occupancy for all schedules within a date range."""
+    schedules = (
+        db.query(models.Schedule)
+        .filter(
+            models.Schedule.departure_date >= start_date,
+            models.Schedule.departure_date <= end_date,
+        )
+        .join(models.Train)
+        .order_by(models.Schedule.departure_date)
+        .all()
+    )
+
+    total_seats_all = db.query(models.Seat).count()
+
+    results = []
+    for schedule in schedules:
+        stop_times = sorted(schedule.stop_times, key=lambda s: s.departure_time or s.arrival_time or "")
+        first_dep = stop_times[0].departure_time if stop_times else None
+        last_arr = stop_times[-1].arrival_time if stop_times else None
+
+        sold = (
+            db.query(models.OrderTicket)
+            .join(models.Order)
+            .filter(
+                models.OrderTicket.schedule_id == schedule.schedule_id,
+                models.OrderTicket.ticket_status == "valid",
+                models.Order.payment_status.in_(["unpaid", "paid"]),
+            )
+            .count()
+        )
+
+        avail = max(0, total_seats_all - sold)
+        rate = round(sold / total_seats_all * 100, 1) if total_seats_all else 0.0
+
+        results.append(schemas.PeakSalesSummary(
+            schedule_id=schedule.schedule_id,
+            train_no=schedule.train_no,
+            train_type=schedule.train.train_type,
+            departure_date=schedule.departure_date,
+            first_departure_time=first_dep,
+            last_arrival_time=last_arr,
+            total_seats=total_seats_all,
+            sold_seats=sold,
+            available_seats=avail,
+            occupancy_rate=rate,
+        ))
+
+    return results
+
+
 @router.get("/{schedule_id}", response_model=schemas.ScheduleWithStops)
 def get_schedule(schedule_id: int, db: Session = Depends(get_db)):
     schedule = db.query(models.Schedule).filter(models.Schedule.schedule_id == schedule_id).first()
