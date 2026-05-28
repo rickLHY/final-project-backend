@@ -72,7 +72,6 @@ def google_login(body: GoogleTokenRequest, db: Session = Depends(get_db)):
     google_id = idinfo["sub"]
     email = idinfo.get("email", "")
     name = idinfo.get("name") or email.split("@")[0]
-    picture = idinfo.get("picture", "")
 
     # Find existing user by google_id or email
     user = (

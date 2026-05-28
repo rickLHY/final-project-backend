@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import date
 from .. import models, schemas
 from ..database import get_db
-from ..deps import get_admin_user, get_current_user
+from ..deps import get_admin_user
 
 router = APIRouter()
 
@@ -277,38 +277,9 @@ def get_available_seats(
     if not start_station or not end_station:
         raise HTTPException(status_code=404, detail="Station not found")
 
-    # Seats already booked with an overlapping segment for this schedule
-    booked_tickets = (
-        db.query(models.OrderTicket)
-        .join(models.Order)
-        .filter(
-            models.OrderTicket.schedule_id == schedule_id,
-            models.OrderTicket.ticket_status == "valid",
-            models.Order.payment_status.in_(["unpaid", "paid"]),
-        )
-        .all()
-    )
-
-    # station sequence cache
-    seq_cache: dict[int, int] = {}
-
-    def get_seq(station_id: int) -> int:
-        if station_id not in seq_cache:
-            s = db.query(models.Station).filter(models.Station.station_id == station_id).first()
-            seq_cache[station_id] = s.sequence_no if s else 0
-        return seq_cache[station_id]
-
-    # Normalize to [lo, hi] so comparison works for both directions
     req_lo = min(start_station.sequence_no, end_station.sequence_no)
     req_hi = max(start_station.sequence_no, end_station.sequence_no)
-
-    booked_seat_ids: set[int] = set()
-    for ticket in booked_tickets:
-        t_start_seq = get_seq(ticket.start_station_id)
-        t_end_seq = get_seq(ticket.end_station_id)
-        t_lo, t_hi = min(t_start_seq, t_end_seq), max(t_start_seq, t_end_seq)
-        if req_lo < t_hi and t_lo < req_hi:
-            booked_seat_ids.add(ticket.seat_id)
+    booked_seat_ids = _get_booked_seat_ids(db, schedule_id, req_lo, req_hi)
 
     # Query available seats (only reserved carriages)
     q = db.query(models.Seat).filter(

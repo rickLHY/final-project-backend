@@ -2,7 +2,6 @@ import csv
 import io
 import random
 import string
-from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
