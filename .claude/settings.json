@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(ngrok config add-authtoken 3EMGdQdoB2qiQMm6U14Wg0yWpWa_4QvK49vX8hCuyxaKMoJ3S 2>&1)",
+      "PowerShell(Start-Process \"cmd\" -ArgumentList \"/c ngrok http 8000 > C:\\\\Users\\\\User\\\\Desktop\\\\database-final-project\\\\ngrok.log 2>&1\" -WindowStyle Hidden)",
+      "PowerShell(Invoke-RestMethod http://127.0.0.1:4040/api/tunnels 2>&1)",
+      "PowerShell(git clone https://github.com/rickLHY/final-project-frontend.git \"C:\\\\Users\\\\User\\\\Desktop\\\\final-project-frontend\" 2>&1)",
+      "Read(//c/Users/User/Desktop/final-project-frontend/**)",
+      "PowerShell($r = Invoke-WebRequest \"https://final-project-frontend-bu6q.vercel.app/api/backend/stations/\" -UseBasicParsing -SkipHttpErrorCheck 2>&1; Write-Host \"Status: $\\($r.StatusCode\\)\"; Write-Host \"Content-Type: $\\($r.Headers['Content-Type']\\)\"; Write-Host \"Body \\(first 200 chars\\): $\\($r.Content.Substring\\(0, [Math]::Min\\(200, $r.Content.Length\\)\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://final-project-frontend-bu6q.vercel.app/api/backend/stations/\")",
+      "PowerShell($r = Invoke-WebRequest \"https://final-project-frontend-bu6q.vercel.app/api/backend/stations/\" -UseBasicParsing -SkipHttpErrorCheck; Write-Host \"Status: $\\($r.StatusCode\\)\"; $r.Headers | Format-Table -AutoSize)",
+      "PowerShell(Get-Process -Name \"ngrok\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(Start-Process \"cmd\" -ArgumentList '/c ngrok http 8000 --request-header-add \"ngrok-skip-browser-warning:true\" > C:\\\\Users\\\\User\\\\Desktop\\\\database-final-project\\\\ngrok.log 2>&1' -WindowStyle Hidden)",
+      "PowerShell(Invoke-RestMethod http://127.0.0.1:4040/api/tunnels)",
+      "Bash(python -c ' *)",
+      "Bash(python main.py --general --date 2026-06-01)",
+      "Bash(CRAWL_DAYS=14 python main.py --general)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\User\\\\Desktop\\\\final-project-frontend\"; $env:GIT_EDITOR = \"true\"; git rebase --continue; git push origin HEAD:main)",
+      "WebSearch",
+      "WebFetch(domain:commons.wikimedia.org)",
+      "PowerShell(Invoke-WebRequest -Uri \"https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/THSR_700T_train_at_THSR_Tainan_Station_20120726.jpg/1280px-THSR_700T_train_at_THSR_Tainan_Station_20120726.jpg\" -OutFile \"C:\\\\Users\\\\User\\\\Desktop\\\\final-project-frontend\\\\public\\\\thsr-bg.jpg\" -UseBasicParsing; Write-Host \"Size: $\\([Math]::Round\\(\\(Get-Item 'C:\\\\Users\\\\User\\\\Desktop\\\\final-project-frontend\\\\public\\\\thsr-bg.jpg'\\).Length/1KB\\)\\)KB\")",
+      "PowerShell(pip install \"google-auth==2.29.0\" \"requests==2.31.0\" -q 2>&1)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\User\\Desktop\\final-project-frontend\\api\\backend",
+      "C:\\Users\\User\\Desktop\\final-project-frontend",
+      "C:\\Users\\User\\Desktop\\final-project-crawler"
+    ]
+  }
+}

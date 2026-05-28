@@ -1,7 +1,10 @@
+import csv
+import io
 import random
 import string
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
@@ -317,6 +320,56 @@ def refund_ticket(
     db.commit()
     db.refresh(ticket)
     return ticket
+
+
+# ── CSV Export ─────────────────────────────────────────────────────────────────
+
+@router.get("/export-csv")
+def export_orders_csv(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    orders = (
+        db.query(models.Order)
+        .filter(models.Order.user_id == current_user.user_id)
+        .order_by(models.Order.created_at.desc())
+        .all()
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["訂單編號", "訂位代號", "付款狀態", "總金額", "建立時間",
+                     "票種", "起站", "終站", "座位", "票價", "票況"])
+
+    for order in orders:
+        for ticket in order.tickets:
+            start = db.query(models.Station).filter(
+                models.Station.station_id == ticket.start_station_id
+            ).first()
+            end = db.query(models.Station).filter(
+                models.Station.station_id == ticket.end_station_id
+            ).first()
+            seat = ticket.seat
+            writer.writerow([
+                order.order_id,
+                order.booking_code,
+                order.payment_status,
+                order.total_amount,
+                order.created_at.strftime("%Y-%m-%d %H:%M"),
+                ticket.ticket_type,
+                start.station_name if start else ticket.start_station_id,
+                end.station_name if end else ticket.end_station_id,
+                f"{seat.carriage_no}車{seat.row_no}{seat.seat_letter}" if seat else ticket.seat_id,
+                ticket.actual_price,
+                ticket.ticket_status,
+            ])
+
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue().encode("utf-8-sig")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=my-orders.csv"},
+    )
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

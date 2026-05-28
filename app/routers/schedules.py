@@ -9,6 +9,35 @@ from ..deps import get_admin_user, get_current_user
 router = APIRouter()
 
 
+def _get_booked_seat_ids(db: Session, schedule_id: int, req_lo: int, req_hi: int) -> set[int]:
+    """Return seat_ids that are booked for an overlapping segment on this schedule."""
+    booked = (
+        db.query(models.OrderTicket)
+        .join(models.Order)
+        .filter(
+            models.OrderTicket.schedule_id == schedule_id,
+            models.OrderTicket.ticket_status == "valid",
+            models.Order.payment_status.in_(["unpaid", "paid"]),
+        )
+        .all()
+    )
+    seq_cache: dict[int, int] = {}
+
+    def get_seq(station_id: int) -> int:
+        if station_id not in seq_cache:
+            s = db.query(models.Station).filter(models.Station.station_id == station_id).first()
+            seq_cache[station_id] = s.sequence_no if s else 0
+        return seq_cache[station_id]
+
+    result: set[int] = set()
+    for ticket in booked:
+        t_lo = min(get_seq(ticket.start_station_id), get_seq(ticket.end_station_id))
+        t_hi = max(get_seq(ticket.start_station_id), get_seq(ticket.end_station_id))
+        if req_lo < t_hi and t_lo < req_hi:
+            result.add(ticket.seat_id)
+    return result
+
+
 @router.get("/", response_model=list[schemas.ScheduleSearchResult])
 def search_schedules(
     departure_date: date,
@@ -47,6 +76,15 @@ def search_schedules(
         if origin_stop.departure_time >= dest_stop.arrival_time:
             continue
 
+        # Count available reserved seats for this segment
+        req_lo = min(start_station.sequence_no, end_station.sequence_no)
+        req_hi = max(start_station.sequence_no, end_station.sequence_no)
+        booked_ids = _get_booked_seat_ids(db, schedule.schedule_id, req_lo, req_hi)
+        total_reserved = db.query(models.Seat).filter(
+            models.Seat.carriage_no < schedule.non_reserved_start_carriage
+        ).count()
+        available_count = max(0, total_reserved - len(booked_ids))
+
         results.append(schemas.ScheduleSearchResult(
             schedule_id=schedule.schedule_id,
             train_no=schedule.train_no,
@@ -55,6 +93,7 @@ def search_schedules(
             non_reserved_start_carriage=schedule.non_reserved_start_carriage,
             origin_departure_time=origin_stop.departure_time,
             destination_arrival_time=dest_stop.arrival_time,
+            available_seats=available_count,
         ))
 
     results.sort(key=lambda r: r.origin_departure_time)

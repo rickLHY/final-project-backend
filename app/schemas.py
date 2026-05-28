@@ -187,6 +187,7 @@ class ScheduleSearchResult(BaseModel):
     non_reserved_start_carriage: int
     origin_departure_time: Optional[time]
     destination_arrival_time: Optional[time]
+    available_seats: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
