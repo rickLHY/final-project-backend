@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from . import models
 from .routers import auth, users, stations, trains, seats, ticket_prices, schedules, orders, waitlists
@@ -9,6 +10,14 @@ app = FastAPI(
     title="台灣高鐵訂票系統 API",
     description="THSR Ticket Booking System — Database Final Project",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router,          prefix="/auth",          tags=["Auth"])
