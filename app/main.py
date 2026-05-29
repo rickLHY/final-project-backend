@@ -1,14 +1,30 @@
 import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from .auth import decode_token
 from .database import engine, SessionLocal
 from . import models
 from .routers import auth, users, stations, trains, seats, ticket_prices, schedules, orders, waitlists
+
+
+# ── Access logger ─────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("access.log", encoding="utf-8"),
+    ],
+)
+_log = logging.getLogger("access")
 
 
 # ── DB migration: add google_id column if not exists ──────────────────────────
@@ -44,9 +60,9 @@ async def _auto_cancel_loop():
                         if ticket.ticket_status == "valid":
                             ticket.ticket_status = "refunded"
                 db.commit()
-                print(f"[auto-cancel] Cancelled {len(expired)} expired order(s)")
+                _log.info(f"[auto-cancel] Cancelled {len(expired)} expired order(s)")
         except Exception as exc:
-            print(f"[auto-cancel] Error: {exc}")
+            _log.error(f"[auto-cancel] Error: {exc}")
             db.rollback()
         finally:
             db.close()
@@ -80,6 +96,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def access_log(request: Request, call_next):
+    start = time.perf_counter()
+
+    # Identify caller: decode JWT if present, else "anonymous"
+    actor = "anonymous"
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        uid = decode_token(auth_header[7:])
+        if uid:
+            actor = f"user:{uid}"
+
+    response = await call_next(request)
+
+    ms = int((time.perf_counter() - start) * 1000)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _log.info(f"{now}  {actor:<12}  {request.method:<7}  {request.url.path:<45}  {response.status_code}  {ms}ms")
+
+    return response
+
 
 app.include_router(auth.router,          prefix="/auth",          tags=["Auth"])
 app.include_router(users.router,         prefix="/users",         tags=["Users"])
