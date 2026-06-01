@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import date
+from datetime import date, time
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_admin_user
@@ -165,7 +165,7 @@ def non_reserved_availability(
             congestion_level=level,
         ))
 
-    results.sort(key=lambda r: r.departure_time or "")
+    results.sort(key=lambda r: r.departure_time or time.max)
     return results
 
 
