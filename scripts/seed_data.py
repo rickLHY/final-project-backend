@@ -2,7 +2,12 @@
 Run from the project root:
     python -m scripts.seed_data
 
-Inserts: 12 stations, sample trains, all seats (1,044 seats), ticket prices, and one sample schedule.
+Inserts: 12 stations, sample trains, all seats (708 seats), ticket prices, and one sample schedule.
+
+Seat layout (matches real THSR):
+  Car 6  — 商務車廂 (Business): 12 rows × A C D E  = 48 seats
+  Cars 1–5, 7–12 — 標準車廂 (Standard): 12 rows × A B C D E = 660 seats
+  Aisle is between C and D in all cars.
 """
 
 from app.database import SessionLocal, engine
@@ -38,21 +43,20 @@ TRAINS = [
 ]
 
 # ── Seat layout ────────────────────────────────────────────────────────────────
-# Carriages 1-3  → business class: 12 rows × 4 seats (A B D F)
-# Carriages 4-12 → standard:       20 rows × 5 seats (A B C D E)
+# Car 6 only  → 商務車廂 (Business): 12 rows × 4 seats (A C D E)  – no B seat
+# Cars 1-5, 7-12 → 標準車廂 (Standard): 12 rows × 5 seats (A B C D E)
+# Aisle is between C and D in both car types.
 
-BUSINESS_LETTERS = ["A", "B", "D", "F"]
-STANDARD_LETTERS = ["A", "B", "C", "D", "E"]
+BUSINESS_LETTERS = ["A", "C", "D", "E"]   # 商務艙 – 2+2 layout, aisle between C and D
+STANDARD_LETTERS = ["A", "B", "C", "D", "E"]  # 標準艙 – 3+2 layout, aisle between C and D
 
 
 def _build_seats() -> list[dict]:
     seats = []
     for carriage in range(1, 13):
-        if carriage <= 3:
-            rows, letters, is_biz = 12, BUSINESS_LETTERS, True
-        else:
-            rows, letters, is_biz = 20, STANDARD_LETTERS, False
-        for row in range(1, rows + 1):
+        is_biz = (carriage == 6)          # only car 6 is business class
+        letters = BUSINESS_LETTERS if is_biz else STANDARD_LETTERS
+        for row in range(1, 13):           # 12 rows per car
             for letter in letters:
                 seats.append({
                     "carriage_no": carriage,
@@ -172,13 +176,21 @@ def seed():
         print("Trains ready")
 
         # ── Seats ───────────────────────────────────────────────────────────
-        if db.query(models.Seat).count() == 0:
+        EXPECTED_SEATS = 708  # 11 std cars × 12 rows × 5 + 1 biz car × 12 rows × 4
+        existing_count = db.query(models.Seat).count()
+        if existing_count == 0:
             seats = _build_seats()
             db.bulk_insert_mappings(models.Seat, seats)
             db.commit()
             print(f"Seats inserted ({len(seats)} total)")
+        elif existing_count != EXPECTED_SEATS:
+            print(f"Seat layout mismatch: found {existing_count}, expected {EXPECTED_SEATS}.")
+            print("To reset to the new layout run:")
+            print("  DELETE FROM order_tickets; DELETE FROM waitlists;")
+            print("  DELETE FROM seats;")
+            print("Then re-run this script.")
         else:
-            print("Seats already exist, skipping")
+            print("Seats already exist with correct layout, skipping")
 
         # ── Ticket Prices ───────────────────────────────────────────────────
         if db.query(models.TicketPrice).count() == 0:

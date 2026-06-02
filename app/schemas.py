@@ -37,6 +37,12 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
 
 
+class AdminUserUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    user_type: Optional[str] = None
+
+
 class UserResponse(BaseModel):
     user_id: int
     email: str
@@ -248,6 +254,7 @@ class OrderResponse(BaseModel):
     booking_code: str
     total_amount: int
     payment_status: str
+    tgo_points_earned: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -257,17 +264,17 @@ class OrderWithTickets(OrderResponse):
     tickets: List[OrderTicketResponse] = []
 
 
-# ── Non-reserved availability ─────────────────────────────────────────────────
+# ── Non-reserved congestion estimate ─────────────────────────────────────────
+# Since non-reserved seats cannot be pre-booked, we estimate congestion from
+# the reserved-seat occupancy rate of the same train.
 
 class NonReservedAvailability(BaseModel):
     schedule_id: int
     train_no: str
     train_type: str
     departure_time: Optional[time]
-    non_reserved_total: int
-    non_reserved_sold: int
-    non_reserved_available: int
-    congestion_level: str  # "low" / "medium" / "high" / "full"
+    reserved_occupancy_rate: float  # proportion of reserved seats sold (0.0–1.0)
+    congestion_level: str           # estimated: "low" / "medium" / "high" / "full"
 
     model_config = {"from_attributes": True}
 

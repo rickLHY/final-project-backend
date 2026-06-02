@@ -106,7 +106,13 @@ def non_reserved_availability(
     station_id: int,
     db: Session = Depends(get_db),
 ):
-    """Non-reserved seat occupancy for all trains stopping at a station on a given date."""
+    """
+    Estimate non-reserved (自由座) congestion for trains stopping at a station on a given date.
+
+    Because non-reserved seats cannot be pre-booked, their occupancy cannot be directly
+    measured. Instead, congestion is estimated from the reserved-seat occupancy rate of the
+    same train: a highly-booked train is also likely to have crowded non-reserved carriages.
+    """
     station = db.query(models.Station).filter(models.Station.station_id == station_id).first()
     if not station:
         raise HTTPException(status_code=404, detail="Station not found")
@@ -118,7 +124,6 @@ def non_reserved_availability(
         .all()
     )
 
-    # Total non-reserved seats (same across all schedules — depends only on non_reserved_start_carriage)
     results = []
     for schedule in schedules:
         stop_map = {st.station_id: st for st in schedule.stop_times}
@@ -126,30 +131,30 @@ def non_reserved_availability(
             continue
         departure_time = stop_map[station_id].departure_time
 
-        non_reserved_total = db.query(models.Seat).filter(
-            models.Seat.carriage_no >= schedule.non_reserved_start_carriage
+        # Count reserved (對號座) seats and how many are sold
+        reserved_total = db.query(models.Seat).filter(
+            models.Seat.carriage_no < schedule.non_reserved_start_carriage
         ).count()
 
-        non_reserved_sold = (
+        reserved_sold = (
             db.query(models.OrderTicket)
             .join(models.Order)
-            .join(models.Seat, models.OrderTicket.seat_id == models.Seat.seat_id)
             .filter(
                 models.OrderTicket.schedule_id == schedule.schedule_id,
                 models.OrderTicket.ticket_status == "valid",
                 models.Order.payment_status.in_(["unpaid", "paid"]),
-                models.Seat.carriage_no >= schedule.non_reserved_start_carriage,
             )
             .count()
         )
 
-        non_reserved_available = max(0, non_reserved_total - non_reserved_sold)
-        rate = non_reserved_sold / non_reserved_total if non_reserved_total else 0
-        if rate >= 1.0:
+        occupancy_rate = round(reserved_sold / reserved_total, 3) if reserved_total else 0.0
+
+        # Map reserved occupancy to estimated non-reserved congestion
+        if occupancy_rate >= 0.90:
             level = "full"
-        elif rate >= 0.8:
+        elif occupancy_rate >= 0.70:
             level = "high"
-        elif rate >= 0.5:
+        elif occupancy_rate >= 0.40:
             level = "medium"
         else:
             level = "low"
@@ -159,9 +164,7 @@ def non_reserved_availability(
             train_no=schedule.train_no,
             train_type=schedule.train.train_type,
             departure_time=departure_time,
-            non_reserved_total=non_reserved_total,
-            non_reserved_sold=non_reserved_sold,
-            non_reserved_available=non_reserved_available,
+            reserved_occupancy_rate=occupancy_rate,
             congestion_level=level,
         ))
 

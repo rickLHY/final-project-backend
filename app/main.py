@@ -11,7 +11,7 @@ from sqlalchemy import text
 from .auth import decode_token
 from .database import engine, SessionLocal
 from . import models
-from .routers import auth, users, stations, trains, seats, ticket_prices, schedules, orders, waitlists
+from .routers import auth, users, stations, trains, seats, ticket_prices, schedules, orders, waitlists, admin
 
 
 # ── Access logger ─────────────────────────────────────────────────────────────
@@ -33,6 +33,9 @@ def _upgrade_db():
     with engine.connect() as conn:
         conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(100) UNIQUE"
+        ))
+        conn.execute(text(
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tgo_points_earned INTEGER DEFAULT 0"
         ))
         conn.commit()
 
@@ -128,6 +131,7 @@ app.include_router(ticket_prices.router, prefix="/ticket-prices", tags=["Ticket 
 app.include_router(schedules.router,     prefix="/schedules",     tags=["Schedules"])
 app.include_router(orders.router,        prefix="/orders",        tags=["Orders"])
 app.include_router(waitlists.router,     prefix="/waitlists",     tags=["Waitlists"])
+app.include_router(admin.router,         prefix="/admin",         tags=["Admin"])
 
 
 @app.get("/", tags=["Health"])

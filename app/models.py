@@ -146,6 +146,8 @@ class Order(Base):
         CheckConstraint("payment_status IN ('unpaid', 'paid', 'cancelled')", name="ck_orders_payment_status"),
     )
 
+    tgo_points_earned = Column(Integer, default=0)
+
     user = relationship("User", back_populates="orders")
     tickets = relationship("OrderTicket", back_populates="order", cascade="all, delete-orphan")
 

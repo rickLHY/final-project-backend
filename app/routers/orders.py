@@ -275,6 +275,9 @@ def get_order(
 
 # ── Pay ────────────────────────────────────────────────────────────────────────
 
+TGO_POINTS_PER_NTD = 20  # 1 point per NT$20 spent
+
+
 @router.put("/{order_id}/pay", response_model=schemas.OrderResponse)
 def pay_order(
     order_id: int,
@@ -289,7 +292,10 @@ def pay_order(
     if order.payment_status != "unpaid":
         raise HTTPException(status_code=400, detail=f"Order is already {order.payment_status}")
 
+    points = order.total_amount // TGO_POINTS_PER_NTD
     order.payment_status = "paid"
+    order.tgo_points_earned = points
+    current_user.tgo_balance += points
     db.commit()
     db.refresh(order)
     return order
@@ -311,12 +317,20 @@ def cancel_order(
     if order.payment_status == "cancelled":
         raise HTTPException(status_code=400, detail="Order is already cancelled")
 
+    was_paid = order.payment_status == "paid"
     order.payment_status = "cancelled"
     for ticket in order.tickets:
         if ticket.ticket_status == "valid":
             ticket.ticket_status = "refunded"
             _restore_early_bird_quota(db, ticket)
             _trigger_waitlist(db, ticket)
+
+    # Reverse TGO points earned on payment
+    if was_paid and order.tgo_points_earned > 0:
+        user = db.query(models.User).filter(models.User.user_id == order.user_id).first()
+        if user:
+            user.tgo_balance = max(0, user.tgo_balance - order.tgo_points_earned)
+        order.tgo_points_earned = 0
 
     db.commit()
     db.refresh(order)
@@ -365,6 +379,15 @@ def refund_ticket(
     order.total_amount = sum(
         t.actual_price for t in order.tickets if t.ticket_status == "valid"
     )
+
+    # Deduct proportional TGO points for the refunded ticket
+    if order.payment_status == "paid":
+        ticket_points = ticket.actual_price // TGO_POINTS_PER_NTD
+        if ticket_points > 0:
+            user = db.query(models.User).filter(models.User.user_id == order.user_id).first()
+            if user:
+                user.tgo_balance = max(0, user.tgo_balance - ticket_points)
+            order.tgo_points_earned = max(0, order.tgo_points_earned - ticket_points)
 
     db.commit()
     db.refresh(ticket)
