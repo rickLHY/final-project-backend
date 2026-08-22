@@ -1,86 +1,77 @@
-# 台灣高鐵訂票系統 — Database Final Project
+# Taiwan HSR Booking System — Backend
 
-FastAPI + PostgreSQL backend for a Taiwan High-Speed Rail ticket booking system.
+[![Frontend Demo](https://img.shields.io/badge/Live_Demo-Vercel-000?logo=vercel)](https://final-project-frontend-bu6q.vercel.app)
+[![Frontend Repo](https://img.shields.io/badge/Frontend-React_+_TypeScript-149eca)](https://github.com/rickLHY/final-project-frontend)
+[![API](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 
-## Setup
+高鐵訂票完整案例的 API、資料模型與核心營運規則。後端使用 FastAPI + PostgreSQL，負責驗證、班次查詢、區間座位分配、票價、訂單、退票與候補。
 
-### 1. Install dependencies
+> 本 repo 是後端；使用者介面與完整案例說明請見 [final-project-frontend](https://github.com/rickLHY/final-project-frontend)。
+
+## 解決的核心問題
+
+一般庫存只需判斷「有或沒有」，車票座位則必須判斷乘車區間是否重疊。例如同一座位可先售出「台北 → 台中」，再售出「台中 → 左營」，但不能同時售出「板橋 → 嘉義」。本系統以停靠站順序完成區間衝突判斷，並讓訂票、退票與候補共用同一套資料規則。
+
+## 功能
+
+- JWT 身分驗證、Email 註冊登入與 Google OAuth 驗證
+- 車站、車次、停靠時間、座位與票價資料模型
+- 依日期、起訖站查詢班次與區間可用座位
+- 票種、早鳥池與自由座車廂規則
+- 訂單建立、付款、取消、單張退票與訂位代號查詢
+- 候補登記；退票後依班次、區間與座位偏好自動媒合
+- 自由座剩餘量與疏運期銷售統計
+
+## 技術棧
+
+FastAPI · PostgreSQL · SQLAlchemy 2 · Pydantic Settings · JWT · Google Auth · Uvicorn
+
+## 架構
+
+```mermaid
+flowchart TD
+  R[FastAPI routes] --> A[Authentication and dependencies]
+  R --> B[Booking and waitlist rules]
+  B --> M[SQLAlchemy models]
+  A --> M
+  M --> P[(PostgreSQL)]
+  G[Google OAuth] --> A
+```
+
+## 代表性 API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/auth/register`, `/auth/login` | 建立帳號與取得 JWT |
+| `GET` | `/schedules/` | 依日期與起訖站查詢班次 |
+| `GET` | `/schedules/{id}/available-seats` | 查詢指定區間可用座位 |
+| `POST` | `/orders/` | 建立 1–6 張票的訂單 |
+| `PUT` | `/orders/{id}/pay` | 模擬付款 |
+| `PUT` | `/orders/{id}/tickets/{ticket_id}/refund` | 單張退票 |
+| `POST` | `/waitlists/` | 登記候補 |
+| `GET` | `/schedules/peak-sales` | 查詢銷售率與剩餘座位 |
+
+啟動服務後，可在 `/docs` 查看完整 OpenAPI 文件。
+
+## 本地啟動
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 2. Create the PostgreSQL database
-
-```sql
-CREATE DATABASE thsr_db;
-```
-
-### 3. Configure environment
-
-```bash
 cp .env.example .env
-# Edit .env with your PostgreSQL credentials and a strong SECRET_KEY
-```
-
-### 4. Run seed data (creates tables + inserts stations, trains, seats, prices)
-
-```bash
 python -m scripts.seed_data
-```
-
-### 5. Start the server
-
-```bash
 uvicorn app.main:app --reload
 ```
 
-API docs: http://localhost:8000/docs
+本機 API：`http://localhost:8000`；互動文件：`http://localhost:8000/docs`。
 
----
+## 測試帳號
 
-## Default seed accounts
+種子資料包含本地展示用帳號，詳情請見 `scripts/seed_data.py`。公開部署時請改用安全密碼與獨立 `SECRET_KEY`，不要沿用展示資料。
 
-| Role  | Email            | Password   |
-|-------|------------------|------------|
-| Admin | admin@thsr.com   | admin1234  |
-| User  | user@thsr.com    | user1234   |
+## 文件
 
----
-
-## API Overview
-
-| Method | Path                                          | Description                          |
-|--------|-----------------------------------------------|--------------------------------------|
-| POST   | /auth/register                                | Register new user                    |
-| POST   | /auth/login                                   | Login (returns JWT)                  |
-| GET    | /users/me                                     | Get own profile                      |
-| GET    | /stations/                                    | List all stations                    |
-| GET    | /trains/                                      | List all trains                      |
-| GET    | /seats/                                       | List seats (filter by carriage/type) |
-| GET    | /ticket-prices/                               | Query ticket prices                  |
-| GET    | /schedules/?departure_date=&start_station_id=&end_station_id= | Search schedules |
-| GET    | /schedules/{id}                               | Schedule details with stop times     |
-| GET    | /schedules/{id}/available-seats               | Available seats for a segment        |
-| GET    | /schedules/{id}/early-bird                    | Early-bird pools                     |
-| GET    | /schedules/non-reserved-availability?departure_date=&station_id= | Non-reserved seat congestion level per train |
-| GET    | /schedules/peak-sales?start_date=&end_date=   | Occupancy & sales stats for a date range |
-| POST   | /orders/                                      | Book tickets (1–6 per order)         |
-| GET    | /orders/{id}                                  | Order details                        |
-| GET    | /orders/booking/{code}                        | Look up by booking code              |
-| PUT    | /orders/{id}/pay                              | Pay for order                        |
-| PUT    | /orders/{id}/cancel                           | Cancel order                         |
-| PUT    | /orders/{id}/tickets/{tid}/refund             | Refund a single ticket               |
-| POST   | /waitlists/                                   | Join waitlist                        |
-| GET    | /waitlists/my                                 | My waitlist entries                  |
-| DELETE | /waitlists/{id}                               | Cancel waitlist entry                |
-
----
-
-## Key Business Logic
-
-- **Seat availability** — checked via overlapping station-range query using `sequence_no`
-- **Ticket pricing** — 全票 100 % · 大學生/敬老 80 % · 愛心/愛陪/兒童 50 % · 早鳥 from `early_bird_pools.discount_rate`
-- **Non-reserved carriages** — controlled by `schedules.non_reserved_start_carriage`; cannot be booked via API
-- **Companion ticket (愛陪)** — self-referential FK to its paired 愛心 ticket; refunding the 愛心 ticket auto-refunds the companion
-- **Waitlist** — triggered automatically when a ticket is refunded; matches on schedule + station-range coverage + seat type preference
+- [Database schema](database-schema.md)
+- [DBMS project notes](DBMS_description.md)
+- [Frontend application](https://github.com/rickLHY/final-project-frontend)
